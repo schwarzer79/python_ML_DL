@@ -55,7 +55,7 @@ knr.fit(train_input,  train_target)
 
 print(knr.score(test_input, test_target)) # 0.992809406101064 / 분류의 경우는 정확하게 분류한 개수의 비율이지만 회귀에서는 결정계수로 평가(R^2)
 
-# 좀 더 명확한 평가를 위해 다른 평가척도를 이용
+# 좀 더 명확한 평가를 위해 다른 평가 척도를 이용
 from sklearn.metrics import mean_absolute_error
 
 test_prediction = knr.predict(test_input)
@@ -90,17 +90,18 @@ perch_weight = np.array([5.9, 32.0, 40.0, 51.5, 70.0, 100.0, 78.0, 80.0, 85.0, 8
        850.0, 900.0, 1015.0, 820.0, 1100.0, 1000.0, 1100.0, 1000.0,
        1000.0])
 
+## 데이터 분할 (train + test)
 from sklearn.model_selection import train_test_split
-
 train_input, test_input, train_target, test_target = train_test_split(perch_length, perch_weight, random_state = 42)
-train_input = train_input.reshape(-1,1)
+train_input = train_input.reshape(-1,1) # input 데이터 2차원 리스트 변환
 test_input = test_input.reshape(-1,1)
 
+## KNeighborsRegressor fitting
 from sklearn.neighbors import KNeighborsRegressor
-
 knr = KNeighborsRegressor(n_neighbors = 3)
 knr.fit(train_input, train_target)
 
+# predict
 print(knr.predict([[50]])) # 1033g으로 무게 예측 --> 예측값과 실제값의 큰 차이가 발생 why?
 
 # 무게 오차의 원인을 알기 위해 산점도 작성
@@ -133,5 +134,173 @@ plt.show(block=True)
 print(lr.score(train_input, train_target)) #0.939846333997604
 print(lr.score(test_input, test_target)) #0.8247503123313558
 
-# 다항회귀
+# 다항 회귀 : 선형회귀로 모델을 만들었지만 그래프를 보면 약간 구부러진 곡선의 형태를 지니고 있기에 최적의 곡선을 찾아야 한다 -> 제곱항의 추가
 
+train_poly = np.column_stack((train_input ** 2, train_input))
+test_poly = np.column_stack((test_input ** 2, test_input))
+print(train_poly.shape, test_poly.shape)
+
+lr = LinearRegression()
+lr.fit(train_poly, train_target)
+print(lr.predict([[50**2, 50]]))
+print(lr.coef_, lr.intercept_)
+
+# 곡선
+point = np.arange(15,50)
+plt.scatter(train_input, train_target)
+plt.plot(point, 1.01 * point ** 2 - 21.6 * point + 116.05)
+plt.scatter(50, 1574, marker = '^')
+plt.xlabel('length')
+plt.ylabel('weight')
+plt.show(block=True)
+
+print(lr.score(train_poly, train_target))
+print(lr.score(test_poly, test_target)) # 점수가 각각 높아졌으나 여전히 테스트에 대한 점수가 더 높음 --> 과소적합이 존재 -> 더 복잡한 모델이 필요
+
+# k-nearest 의 가장 큰 단점은 훈련 세트 범위 밖의 샘플을 예측할 수 없다는 것 -> 해결을 위해 선형회귀 사용 -> 선형 회귀로도 최적 곡선이 나오지않아 다항 회귀 사용
+
+### 특성 공학과 규제
+# 어느정도 무게 예측이 가능해졌지만 여전히 훈련 세트보다 테스트 세트의 점수가 더 높은 편 ---> 과소적합 -> 하나가 아닌 여러 개의 특성을 이용 / 여러 개의 특성을 이용한 회귀 = 다중 회귀
+# 항이 두개라면 직선이 아닌 평면의 형태로 방정식을 그려낼 수 있음
+# 특성 간의 결합을 새로운 특성으로 것 = 특성 공학(feature engineering)
+
+# 데이터 준비 -> csv 파일을 pandas를 이용해 import한 후 numpy를 이용해 numpy 배열로 변환
+import pandas as pd
+df = pd.read_csv('https://bit.ly/perch_csv_data')
+perch_full = df.to_numpy()
+print(perch_full) # 입력데이터(input)
+
+import numpy as np
+perch_weight = np.array([5.9, 32.0, 40.0, 51.5, 70.0, 100.0, 78.0, 80.0, 85.0, 85.0, 110.0,
+       115.0, 125.0, 130.0, 120.0, 120.0, 130.0, 135.0, 110.0, 130.0,
+       150.0, 145.0, 150.0, 170.0, 225.0, 145.0, 188.0, 180.0, 197.0,
+       218.0, 300.0, 260.0, 265.0, 250.0, 250.0, 300.0, 320.0, 514.0,
+       556.0, 840.0, 685.0, 700.0, 700.0, 690.0, 900.0, 650.0, 820.0,
+       850.0, 900.0, 1015.0, 820.0, 1100.0, 1000.0, 1100.0, 1000.0,
+       1000.0]) # target 데이터
+
+from sklearn.model_selection import train_test_split
+train_input, test_input, train_target, test_target = train_test_split(perch_full, perch_weight, random_state = 42) # 데이터 분할
+
+# sklearn의 변환기 --> 특성을 만들거나 전처리하기 위한 다양한 클래스 / fit() , transform()
+from sklearn.preprocessing import PolynomialFeatures
+
+poly = PolynomialFeatures()
+poly.fit([[2,3]]) # fit 에서 새롭게 만들 수 있는 특성 조합을 찾음 / transform 에서는 실제 데이터로 변환 --> 변환기에서는 target데이터가 필요없음
+print(poly.transform([[2,3]])) # fit과 transform을 한번에 할 수 있는 fit_transform() 메소드도 있음
+
+poly = PolynomialFeatures(include_bias = False) # 특성 목록에 항상 1이 포함되어 있기에 이것을 제거하기 위한 옵션 (include_bias = False) / 굳이 이것을 지정하지 않아도 모델에서는 제외됨
+poly.fit([[2,3]])
+print(poly.transform([[2,3]]))  #[[2. 3. 4. 6. 9.]]
+
+poly = PolynomialFeatures(include_bias = False)
+poly.fit(train_input)
+train_poly = poly.transform(train_input)
+print(train_poly.shape) #(42, 9)
+
+poly.get_feature_names_out() # array(['x0', 'x1', 'x2', 'x0^2', 'x0 x1', 'x0 x2', 'x1^2', 'x1 x2', 'x2^2'], dtype=object)
+
+test_poly = poly.transform(test_input) # 훈련 셋을 변환할 떄와 같은 변환기를 사용하지 않아도 되지만 대부분 같은 변환을 하는 것이 좋으므로 습관을 가지자
+
+# 다중 회귀 모델 훈련하기 -> 다중회귀모델의 훈련은 선형회귀모델 훈련과 같으며 다만 특성이 여러개일 뿐이다
+from sklearn.linear_model import LinearRegression
+lr = LinearRegression()
+lr.fit(train_poly, train_target)
+print(lr.score(train_poly, train_target)) #0.9903183436982125
+print(lr.score(test_poly, test_target)) #0.9714559911594155 --- > 테스트 셋의 점수가 더 높고 각각의 점수가 높은 편 / 과소적합 해결
+
+# 특성을 여기서 더 추가? --> 제곱항에 이어 세제곱, 네제곱까지 넣을 수 있음
+# PolynomialFeatures 의 degree 매개변수 사용 --> 5제곱까지 가능
+poly = PolynomialFeatures(degree = 5, include_bias = False)
+poly.fit(train_input)
+train_poly = poly.transform(train_input)
+test_poly = poly.transform(test_input)
+print(train_poly.shape) #(42, 55) --> 특성 개수가 55
+
+lr.fit(train_poly, train_target)
+print(lr.score(train_poly,train_target)) #0.9999999999938143
+print(lr.score(test_poly, test_target)) #-144.40744532797535 ---> 특성의 개수를 엄청나게 늘리면 테스트셋에 대한 평가척도는 매우 잘 나오지만 테스트 셋에서는 형편없는 결과 = 과대적합
+
+# 규제 -> 과대적합 해결을 위한 방법
+# 규제를 하기 전에 미리 scaling 해야함 --> 표준점수 or  StandardScaler
+from sklearn.preprocessing import StandardScaler
+ss = StandardScaler()
+ss.fit(train_poly)
+train_scaled = ss.transform(train_poly)
+test_scaled = ss.transform(test_poly) # 반드시 훈련세트로 학습한 변환기로 테스트셋을 변환해야함
+
+# 선형 회귀에 규제를 추가한 모델 = Ridge(릿지) , lasso(라쏘)
+# Ridge = 계수를 제곱한 값을 기준으로 적용 / lasso = 계수의 절댓값을 이용 --> 일반적으로 릿지를 더 선호 / 두 알고리즘 모두 계수를 감소시키지만 라쏘는 아예 0으로 만들 수 있음
+
+## Lidge 회귀
+from sklearn.linear_model import Ridge
+ridge = Ridge()
+ridge.fit(train_scaled, train_target)
+print(ridge.score(train_scaled,train_target)) #0.9896101671037343
+print(ridge.score(test_scaled,test_target)) #0.979069397761539 --> 규제가 없을 떄의 다중회귀에서 정상적으로 돌아옴
+
+# 릿지와 라쏘를 사용할 떄 규제의 정도를 조절 가능 --> 매개변수 alpha ( alpha가 커지면 규제강도가 상승해 과소적합, alpha가 작아지면 선형회귀 모델과 유사해지므로 과대적합)
+# 이러한 매개변수는 분석자가 직접 지정해야함 = 하이퍼파라미터(hyperparameter)
+# 적절한 alpha값을 찾는 방법은 alpha에 대한 R^2를 그려보는 것 --> train과 test의 점수가 가장 가까운 지점이 최적 alpha
+
+import matplotlib.pyplot as plt
+train_score = []
+test_score = []
+
+alpha_list = [0.001, 0.01, 0.1, 1, 10, 100]
+for alpha in alpha_list:
+       # Ridge model
+       ridge = Ridge(alpha = alpha)
+       # fitting
+       ridge.fit(train_scaled, train_target)
+       # score
+       train_score.append(ridge.score(train_scaled, train_target))
+       test_score.append(ridge.score(test_scaled, test_target))
+
+# alpha값을 0.001부터 10배씩 늘렸기에 그래프 왼쪽이 너무 촘촘 --> 지수변환으로 해결
+plt.plot(np.log10(alpha_list), train_score)
+plt.plot(np.log10(alpha_list),test_score)
+plt.xlabel('alpha')
+plt.ylabel('R^2')
+plt.show(block=True) # 전형적인 과대적합에서 과소적합으로 가는 그래프 --> 두 차이가 가장 적은 부분은 alpha = -1 (log변환했으므로 0.1)
+
+# alpha=0.1 fitting
+ridge = Ridge(alpha = 0.1)
+ridge.fit(train_scaled, train_target)
+print(ridge.score(train_scaled, train_target)) #0.9903815817570368
+print(ridge.score(test_scaled, test_target)) #0.9827976465386954
+
+## Lasso 회귀
+from sklearn.linear_model import Lasso
+lasso = Lasso()
+lasso.fit(train_scaled, train_target)
+print(lasso.score(train_scaled, train_target)) #0.989789897208096
+print(lasso.score(test_scaled, test_target)) #0.9800593698421884 --> lasso 회귀 모델 또한 어느정도 과대적합을 억제
+
+# 최적 alpha찾기
+train_score = []
+test_score = []
+
+alpha_list = [0.001, 0.01, 0.1, 1, 10, 100]
+for alpha in alpha_list:
+       # Lasso model
+       lasso = Lasso(alpha=alpha, max_iter=50000000)
+       # fitting
+       lasso.fit(train_scaled, train_target)
+       # score
+       train_score.append(lasso.score(train_scaled, train_target))
+       test_score.append(lasso.score(test_scaled, test_target))
+
+plt.plot(np.log10(alpha_list), train_score)
+plt.plot(np.log10(alpha_list),test_score)
+plt.xlabel('alpha')
+plt.ylabel('R^2')
+plt.show(block=True) # alpha = 1 (log이므로 10에서 최적)
+
+lasso = Lasso(alpha = 10)
+lasso.fit(train_scaled, train_target)
+print(lasso.score(train_scaled, train_target))
+print(lasso.score(test_scaled, test_target)
+
+# lasso 모델은 계수 0이 존재
+print(np.sum(lasso.coef_ == 0))
