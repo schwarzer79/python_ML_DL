@@ -235,6 +235,88 @@ print(dt.score(test_input, test_target)) # 0.8615384615384616
 ## RandomForest (앙상블 학습의 대표)
 """
 RandomForest 는 각 트리를 훈련하기 위한 데이터를 랜덤하게 생성 -> 훈련 데이터 중 랜덤하게 샘플을 선택해 훈련데이터를 만듦 (중복 추출도 가능) / 복원추출 ==> 부트스트랩 샘플
-
+BootStrapSample 은 보통 훈련세트와 크기가 같음
+각 노드 분할 시 전체 특성 중에서 일부 특성을 무작위로 선택한 후 이 중에서 최선의 분할을 찾음 --> RandomForestClassifier 는 기본적으로 전체 특성 수의 제곱근만큼 특성 선택
+RandomForestRegressor 는 전체 특성을 전부 사용
+Sklearn의 RandomForest는 기본적으로 100개의 결정 트리를 훈련 -> 분류라면 각 트리의 클래스 별 확률을 평균해 가장 높은 확률을 가진 클래스를 예측으로 하고 회귀라면 단순히 각 트리의 예측을 평균
+RandomForest는 랜덤한 샘플과 특성을 사용하기에 train set 과대적합을 막을 수 있음
 """
 
+# Data Import + Data Split
+import numpy as np
+import pandas as pd
+from sklearn.model_selection import train_test_split
+wine = pd.read_csv('https://bit.ly/wine_csv_data')
+data = wine[['alcohol', 'sugar','pH']].to_numpy()
+target = wine['class'].to_numpy()
+train_input, test_input, train_target, test_target = train_test_split(data, target, random_state = 42, test_size = 0.2)
+
+# CrossValidate를 이용한 교차 검증
+from sklearn.model_selection import cross_validate
+from sklearn.ensemble import RandomForestClassifier
+rf = RandomForestClassifier(n_jobs = -1, random_state = 42)
+scores = cross_validate(rf, train_input, train_target, return_train_score = True, n_jobs = -1)
+print(np.mean(scores['train_score']), np.mean(scores['test_score'])) # 0.9973541965122431 0.8905151032797809 --> 과대적합 (HyperParameter에 대한 조정이 필요하지만 데이터 특성 수가 별로 없어 효과 미미)
+"""
+기본적으로 많은 계산량을 필요로 하므로 n_jobs = -1 / return_train_score = True 라면 검증 점수뿐만 아니라 훈련 세트에 대한 점수도 같이 반환(과대적합 파악에 용이)
+RandomForest는 DecisionTree의 앙상블이기에 DecisionTree가 필요로 하는 매개변수를 모두 제공 + 특성 중요도를 계산 / RandomForest의 특성 중요도는 각 DecisionTree의 특성 중요도를 취합한 것
+"""
+rf.fit(train_input, train_target)
+print(rf.feature_importances_)
+# [0.23167441 0.50039841 0.26792718] --> DeicisonTree의 결과보다 두번째 특성의 중요도가 감소하고 나머지 특성들의 중요도가 늘었음 = RandomForest가 특성 일부를 랜덤하게 선택해 훈련 --> 과대적합 감소 + 일반화
+"""
+RandomForestClassifier 는 자체적으로 모델 평가 점수를 계산 
+BootStrap Sample을 만들고 남은 샘플을 OOB라고 하는 데, 이를 이용해서 만들어진 결정 트리를 평가 (Validation Set의 역할을 수행)
+모델 평가 점수를 얻으려면 oob_score = True로 지정해야 함 (Default = False)
+"""
+
+rf = RandomForestClassifier(oob_score = True, n_jobs = -1, random_state = 42)
+rf.fit(train_input, train_target)
+print(rf.oob_score_) # 0.8934000384837406 / OOB 점수를 이용하면 교차 검증을 대신할 수 있어 결과적으로 많은 훈련 세트 샘플을 사용할 수 있음
+
+"""
+< oob score 에 관하여>
+oob_score는 강력한 검증 기술 중 하나로 특히 RandomForest 알고리즘에서 최소 분산 결과를 도출하는 데 좋다.
+cross-validation 기법을 사용하면 매 검증마다 데이터 누출이 일어나기에 분산이 늘어날 수 밖에 없다
+
+- 장점 
+1. 데이터 누출 없음 : 데이터가 oob sample에서 검증되었으므로 모델 훈련하는 동안 데이터가 사용되지 않아 데이터 누출이 없음
+2. Less Variance : 데이터가 과도하게 적합되지 않아 분산 최소화
+3. 더 나은 예측 모델 : 분산이 낮으므로 다른 검증 기술을 사용하는 모델보다 더 나은 예측 모델을 만들 수 있음
+4. 적은 계산 : 학습되는 데이터를 테스트할 수 있으므로 계산량 감소
+
+- 단점
+1. 시간 소요 많음 : 다른 검증 기법에 비해 시간이 많이 소요됨
+2. 대용량 데이터 세트에는 적합하지 않음 : 대용량일 경우 시간이 매우 오래 걸릴 수 있음
+3. 중소 규모 데이터 세트에 적합 : 이 경우에는 oob_score를 사용할만하다
+"""
+
+## 엑스트라 트리 (Extra Tree)
+"""
+RandomForest와 기본적으로 비슷하게 동작 -> 100개의 DecisionTree를 훈련 / DecisionTree가 제공하는 대부분의 매개변수 지원
+전체 특성 중 일부 특성을 선택해서 노드 분할에 사용
+- RandomForest와 ExtraTree의 차이점은 BootStrap Sample을 사용하지 않는다는 것 + 노드 분할 시 가장 좋은 분할을 찾는 것이 아닌 무작위 분할 (이전 DecisionTreeClassifier에서 splitter가 Random 인 경우)
+- splitter를 random으로 한다면 성능은 낮아지지만 많은 트리를 앙상블하기에 과대적합을 막고 검증세트의 점수를 높이는 효과 있음
+"""
+from sklearn.ensemble import ExtraTreesClassifier
+et = ExtraTreesClassifier(n_jobs = -1, random_state = 42)
+scores = cross_validate(et, train_input, train_target, n_jobs = -1, return_train_score = True)
+print(np.mean(scores['train_score']), np.mean(scores['test_score'])) # 0.9974503966084433 0.8887848893166506
+# RandomForestClassifier 와 비슷한 결과지만 RandomForest보다 더 많은 결정 트리 훈련이 필요하지만 계산 속도는 더 빠름 (DecisionTree는 최적 분할을 찾는 데 시간을 많이 소모하기 때문)
+# ExtraTree 또한 특성 중요도를 반환
+
+et.fit(train_input, train_target)
+print(et.feature_importances_) # [0.20183568 0.52242907 0.27573525]
+
+## Gradient Boosting
+"""
+얕은 깊이의 결정 트리를 사용해 이전 트리의 오차를 보완하는 방식으로 앙상블
+sklearn의 GradientBoostingClassifier 는 기본적으로 Depth 3의 DecisionTree 100개를 사용 --> 과대적합에 강하고 일반적으로 높은 일반화 성능을 기대할 수 있음
+GradientDescent를 이용해 트리를 앙상블에 추가 --> Classifier에서는 로지스틱 손실 함수를 사용하고, Regression에서는 평균 제곱 오차함수(MSE)를 사용
+- GradientBoosting은 결정 트리를 계속 추가하면서 가장 낮은 곳을 찾아 이동 (모델 가중치와 절편을 조금씩 바꾸는 것) --> 조금씩 바꾸기 위해서 Depth가 작은 DecisionTree를 사용 + 학습률 매개변수도 사용
+"""
+
+from sklearn.ensemble import GradientBoostingClassifier
+gb = GradientBoostingClassifier(random_state = 42)
+scores = cross_validate(gb, train_input, train_target, return_train_score = True, n_jobs = -1)
+print(np.mean(scores['train_score']), np.mean(scores['test_score']))
