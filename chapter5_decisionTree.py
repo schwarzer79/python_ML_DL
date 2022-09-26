@@ -208,7 +208,7 @@ ugen.rvs(10)
 
 params = {'min_impurity_decrease' : uniform(0.0001,0.001),
                 'max_depth' : randint(20,50),
-                'min_samples_split' : randint(2,25)
+                'min_samples_split' : randint(2,25),
                 'min_samples_leaf' : randint(1,25)}  #   'min_samples_leaf' = 리프 노드가 되기 위한 최소 샘플 개수로 어떤 노드가 분할해서 만들어질 자식 노드 샘플 수가 이보다 작으면 분할 안함
 
 from sklearn.model_selection import RandomizedSearchCV
@@ -319,4 +319,84 @@ GradientDescent를 이용해 트리를 앙상블에 추가 --> Classifier에서�
 from sklearn.ensemble import GradientBoostingClassifier
 gb = GradientBoostingClassifier(random_state = 42)
 scores = cross_validate(gb, train_input, train_target, return_train_score = True, n_jobs = -1)
-print(np.mean(scores['train_score']), np.mean(scores['test_score']))
+print(np.mean(scores['train_score']), np.mean(scores['test_score'])) # 0.8881086892152563 0.8720430147331015 --> 과대적합 x / gradient boosting은 결정 트리의 개수를 늘려도 과대적합에 강함
+
+# 더 좋은 결과를 위해 학습률을 늘리고 결정트리 개수 증가
+gb = GradientBoostingClassifier(n_estimators = 500, learning_rate = 0.2, random_state = 42)
+scores = cross_validate(gb, train_input, train_target, return_train_score = True, n_jobs=  -1)
+print(np.mean(scores['train_score']), np.mean(scores['test_score'])) # 0.9464595437171814 0.8780082549788999 --> 결정트리 개수를 5배나 늘렸지만 과대적합을 어느정도 억제하고 있음
+"""
+학습률 learning_rate 의 default = 0.1 
+gradient boosting 또한 특성 중요도를 제공
+"""
+
+gb.fit(train_input, train_target)
+print(gb.feature_importances_) # [0.15872278 0.68011572 0.16116151]
+
+"""
+매개변수 subsample은 default 1.0으로 전체 훈련 세트를 사용, 1보다 작다면 훈련 세트의 일부를 사용한다 --> stocahstic gradient 나 minibatch gradient 와 유사한 면이 있음
+일반적으로 gradient boosting이 random forest보다 더 좋은 결과를 얻을 수 있지만, 훈련 속도가 느림 (순서대로 트리를 추가하기 때문)
+gradient boosting의 속도와 성능을 개선한 것 = 히스토그램 기반 gradient boosting
+"""
+
+## Histogram - based Gradient Boosting --> 정형 데이터를 다루는 머신러닝 알고리즘 중에서 가장 인기가 많음
+"""
+입력 특성을 256개의 구간으로 분할 --> 노드 분할 시 최적 분할을 빠르게 찾을 수 있음
+256개 구간 중 하나를 뗴어 놓고 누락된 값을 위해서 사용 --> 입력에 누락된 특성이 있어도 따로 전처리할 필요가 없음
+sklearn의 histogram - based gradient boosting Class = HistGradientBoostingClassifier --> 기본 매개변수에서도 안정적인 성능을 얻을 수 있음 / 트리 개수 지정에 n_estimators 대신 max_iter를 사용
+"""
+
+from sklearn.experimental import enable_hist_gradient_boosting
+from sklearn.ensemble import HistGradientBoostingClassifier
+hgb = HistGradientBoostingClassifier(random_state = 42)
+scores = cross_validate(hgb, train_input, train_target, return_train_score = True)
+print(np.mean(scores['train_score']), np.mean(scores['test_score'])) # 0.9321723946453317 0.8801241948619236 --> 과대적합을 잘 억제하면서 gradient boosting보다 더 높은 성능 제공
+
+# 특성 중요도
+"""
+histogram - based gradient boosting 의 특성 중요도를 계산하려면 permutation_importance() 함수를 사용 --> 특성을 랜덤하게 하나씩 섞어서 모델 성능이 변화하는지 관찰해 어떤 특성이 중요한지 계산
+훈련 셋 + 테스트 셋에도 적용 가능, sklearn에서 제공하는 모든 추정기 모델에 사용 가능
+매개변수 n_repeats 는 랜덤하게 섞을 횟수 지정 (default = 5)
+"""
+
+
+from sklearn.inspection import permutation_importance
+hgb.fit(train_input, train_target)
+result = permutation_importance(hgb, train_input, train_target, n_repeats = 10, random_state = 42, n_jobs = -1)
+print(result.importances_mean) # [0.08876275 0.23438522 0.08027708] --> [특성 중요도(importances), 평균(importances_mean), 표준편차(importances_std)]
+
+result = permutation_importance(hgb, test_input, test_target, n_repeats = 10, random_state = 42, n_jobs = -1)
+print(result.importances_mean) # [0.05969231 0.20238462 0.049] --> gradient boosting과 유사한 결과
+
+# test set에서의 성능 최종 확인
+hgb.score(test_input, test_target) # 0.8723076923076923 / 약 87%의 정확도
+
+"""
+histogram - based gradient boosting의 regression 버전은 HistGradientBoostingRegressor
+sklearn 이외에도 다양한 라이브러리에 구현되어 있음 --> XGBoost
+"""
+
+# XGBoost를 사용한 Histogram - Based Gradient Boosting
+from xgboost import XGBClassifier
+from sklearn.model_selection import cross_validate
+xgb = XGBClassifier(tree_method = 'hist', random_state = 42)
+scores = cross_validate(xgb, train_input, train_target, return_train_score = True)
+print(np.mean(scores['train_score']), np.mean(scores['test_score'])) # 0.9555033709953124 0.8799326275264677
+
+# LightGBM 라이브러리를 이용한 Histogram - Based Gradient Boosting
+pip install lightgbm
+from lightgbm import LGBMClassifier
+lgb = LGBMClassifier(random_state = 42)
+scores = cross_validate(lgb, train_input, train_target, return_train_score = True, n_jobs = -1)
+print(np.mean(scores['train_score']), np.mean(scores['test_score'])) # 0.935828414851749 0.8801251203079884
+
+"""
+< Ensemble 정리 >
+
+- DecisionTree 기반 앙상블 학습은 강력하고 뛰어난 성능을 제공 --> RandomForest, ExtraTree, GradientBoosting, Histogram - based GradientBoosting
+1. RandomForest : 성능이 좋고 안정적이기에 기본적으로 시행해 볼 수 있는 앙상블 학습 / bootstrap sample을 만들고 전체 특성 중 일부를 랜덤하게 선택해 decisionTree를 만듬
+2. ExtraTree : RandomForest와 유사하지만 bootstrapSample을 만들지 않고 노드를 분할할 때 최선이 아닌 랜덤하게 분할, 때문에 RandomForest 보다 속도는 빠르지만 보통 더 많은 tree가 필요
+3. gradientBoosting : depth가 낮은 트리를 연속적으로 추가해 손실함수를 최소화하는 앙상블 / 성능은 좋지만 병렬 훈련이 불가능하기에 다른 알고리즘에 비해 속도가 느림 / 학습률 매개변수를 조작해 모델 복잡도를 제어할 수 있음, 단 높아지면 훈련 세트에 과대적합된 모델이 나옴
+4. Histogram-based GradientBoosting : 가장 좋은 앙상블 학습 기법으로 평가 / 256개 구간으로 변환하여 사용하기에 노드 분할 속도가 매우 빠름 / sklearn 이외에 XGBoost, LightGBM 에도 있음
+- 앙상블 학습 + grid Search, RandomSearch 를 사용한 HyperParameter 튜닝으로 더 좋은 성능을 내는 모델을 찾을 수 있음
+"""
