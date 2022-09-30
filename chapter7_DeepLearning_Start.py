@@ -51,7 +51,6 @@ print(np.mean(scores['test_score'])) # 0.8192833333333333 / max_iter=5 였지만
 가장 기본적인 인공신경망은 확률적 경사 하강법을 이용하는 로지스틱 회귀와 동일
 """
 
-import tensorflow as tf
 from tensorflow import keras
 
 ## 인공 신경망으로 모델 만들기
@@ -99,21 +98,45 @@ catergorical 일 떄는 10개의 출력층에서 10개의 클래스에 대한 �
 마찬가지로 두번째 뉴런의 활성화 출력인 a2만 남기려면 [0,1,0,0...,0]을 곱해 a2만 남길 수 있고 샘플을 정확하게 분류하려면 신경망이 a2의 출력을 가능한 한 높여주어야 한다
 ---> 위와 같이 타깃값을 해당 클래스만 1, 나머지는 0인 배열로 만드는 것 = one-hot encoding / 다중 분류에서는 크로스 엔트로피 손실 함수를 사용하기 위해서는 0,1,2,...식의 타깃값을 원-핫 인코딩으로 변경
 
-metrics 매개변수
--> keras는 모델 훈련 시 기본적으로 에포크마다 손실 값을 출력, 손실이 줄어드는 것을 보고 훈련이 잘 되었다는 것을 알 수도 있지만 정확도를 함께 출력하는 것이 더 좋음 => metrics = 'accuracy'
+*** One - Hot Encoding 과 label Encoding ***
+1. Categorical Encoding 이란?
+머신은 텍스트가 아닌 숫자만을 이해하기에 텍스트로 이루어진 자료를 숫자형으로 변환해줄 필요가 있다. 때문에 catergorical encoding 은 필수적인 작업
+catergorical encoding을 크게 두 가지 방법으로 분류하면 Label Encoding + One-Hot Encoding 
+
+2. Label Encoding (관련 질의 : https://stackoverflow.com/questions/59914210/why-shouldnt-the-sklearn-labelencoder-be-used-to-encode-input-data)
+텍스트를 알파벳 순서대로 정렬한 후 그 순서대로 번호를 매겨 숫자를 할당해준다는 뜻, 하지만 데이터 특성에 순서나 랭크가 존재하지 않는 경우도 있어 분석자가 원하지 않는 방향으로 encoding 될 수 있음
+* 주의할점
+ 1) sklearn의 LabelEncoder 는 1차원 배열만을 입력으로 받음 -> dataframe을 넣을 수 없음 (각 column마다 LabelEncoder를 불러와서 처리해야함)
+ 2) 웬만해서는 사용하지 않는 것이 좋음 -> 순서가 없는(독립적인) 속성값들을 연속형 수치들로 바꾸게 되면 학습과정에서 의도치 않은 가중치에 차이를 두게 됨 / 떄문에 변수의 cardinality가 높아도 label encoding보다는 
+ 범주형 변수 자체를 처리할 수 있는 분류기를 사용하는 것이 best(CatBoost, lightGBM 등은 범주형 변수를 encoding 없이 넣어도 처리할 수 있게 되어있음)
+ 
+** cardinality 에 관하여 
+- 중복도가 낮으면 cardinality가 높고 중복도가 높으면 cardinality가 낮다고 말할 수 있음 
+- 예를 들어 주민등록번호 같은 경우 중복도가 낮기 때문에 cardinality가 높고 성별이나 이름의 경우 주민등록번호와 다르게 중복도가 높으므로 cardinality가 낮다고 할 수 있음
+
+3. One-Hot Encoding
+목록값을 이진값으로 변환하는 방법 / 더미변수를 만드는 것과 유사
+- sklearn의 OneHotEncoder()를 사용하거나 pandas의 get_dummies()를 사용할 수 있음 / pandas의 get_dummies()를 사용하는 것이 각 column 명에 변수특성을 명시해줘 OneHotEncoder()를 통한 명시보다는 보기 편함
+
+4. 선택 기준
+데이터셋에 순서가 없고 고유값의 개수가 많지 않다면? -> One - Hot Encoding
+데이터셋에 순서가 존재하고 고유값의 개수가 많다면? -> Label Encoding
+
+
+*** metrics 매개변수 ***
+-> keras는 모델 훈련 시 기본적으로 epoch마다 손실 값을 출력, 손실이 줄어드는 것을 보고 훈련이 잘 되었다는 것을 알 수도 있지만 정확도를 함께 출력하는 것이 더 좋음 => metrics = 'accuracy'
 """
 model.compile(loss = 'sparse_categorical_crossentropy', metrics = 'accuracy')
 print(train_target[:10]) # [7 3 5 8 6 9 3 3 9 9] --> 모두 정수로 구성 / 하지만 tensorflow에서는 정수로 된 타깃값을 원-핫 인코딩으로 변경하지 않고 그냥 사용할 수 있음 = sparse_catergorical_crossentropy
 
 # model fitting
-model.fit(train_scaled, train_target, epochs = 5) # tensorflow는 인공신경망을 만들고 훈련할 떄 랜덤하게 움직이는 특성이 있어 결과값이 매번 다름
+model.fit(train_scaled, train_target, epochs = 5) # tensorflow는 인공신경망을 만들고 훈련할 때 랜덤하게 움직이는 특성이 있어 결과값이 매번 다름
 # 점점 loss는 감소하고 정확도는 늘어가는 모습 / 최종적으로 5번째 epoch에서는 accuracy = 85%
 
 # validation set에서의 성능 테스트 -> evaluate()
 model.evaluate(val_scaled, val_target) # [0.44676724076271057, 0.8527500033378601] = [loss, accuracy] -> 검증 set의 점수는 훈련 셋보다 조금 낮은 것이 특징
 
 ### 심층 신경망
-
 from tensorflow import keras
 (train_input, train_target), (test_input, test_target) = keras.datasets.fashion_mnist.load_data()
 
@@ -208,7 +231,7 @@ model.fit(train_scaled, train_target, epochs = 5)
 ReLU는 입력이 양수인 경우에는 활성화 함수가 없는 것처럼 입력을 통과시키고 음수인 경우에는 0으로 만듬
 max(0,z) : z가 0보다 크면 출력, 아니면 0 / 이미지 처리에서 성능이 좋음
 
-keras 제공 기능 중 차원에 관한 것
+*** keras 제공 기능 중 차원에 관한 것 ***
 이미지 데이터를 인공 신경망에 넣기 위해 numpy의 reshape() 메소드를 활용해서 1차원으로 펼쳤는 데 이를 keras의 Flatten 층을 이용할 수 있음
 Flatten은 배치 차원을 제외하고 나머지 입력 차원을 모두 일렬로 펼치는 역할만 수행하기에 인공 신경망 성능 향상에는 영향 없지만 이 클래스를 층처럼 입력층과 출력층 사이에 넣기에 층이라고 부름
 """
@@ -284,3 +307,191 @@ model.compile(optimizer = 'adam', loss = 'sparse_categorical_crossentropy',metri
 model.fit(train_scaled, train_target, epochs = 5) # RMSprop을 사용했을 때와 거의 유사한 결과
 
 model.evaluate(val_scaled, val_target) # [0.345048189163208, 0.8775833249092102]
+
+### 신경망 모델 훈련
+"""
+이전까지 tensorflow의 keras API를 이용해 인공 신경망을 만들기 + add(),Flatten() 등을 이용한 은닉층 추가 + Optimizer 들을 적용하는 방법
+sklearn에서 배우던 머신러닝 알고리즘은 좋은 성능을 위해 매개변수를 조정하고 훈련 -> 모델 구조가 어느정도 고정되어있음
+인공신경망은 모델의 구조를 직접 만드는 느낌이 강함
+"""
+
+## 손실 곡선
+"""
+fit() 으로 모델을 훈련하면 epoch, loss, accuracy 등을 볼 수 있었음 + print() 명령이 없어도 자동으로 마지막 라인의 실행 결과를 출력 = fit() 메소드가 무언가를 반환한다는 의미 -> fit()은 History 클래스 객체를 반환
+History 객체에는 loss와 accuracy 값이 저장되어 있음
+"""
+
+from tensorflow import keras
+from sklearn.model_selection import train_test_split
+(train_input, train_target), (test_input, test_target) = keras.datasets.fashion_mnist.load_data()
+train_scaled = train_input / 255.0
+train_scaled, val_scaled, train_target, val_target  = train_test_split(train_scaled, train_target, test_size = 0.2, random_state = 42)
+
+def model_fn(a_layer = None) :
+    model = keras.Sequential()
+    model.add(keras.layers.Flatten(input_shape = (28,28)))
+    model.add(keras.layers.Dense(100, activation = 'relu'))
+    if a_layer :
+        model.add(a_layer)
+    model.add(keras.layers.Dense(10, activation = 'softmax'))
+    return model # if문을 제외하고는 앞에서 한 모델 생성과 동일 / if문에는 a_layer 변수를 추가하면 은닉층 뒤에 또다른 층을 하나 더 추가해 주는 것
+
+model = model_fn()
+model.summary()
+model.compile(loss = 'sparse_categorical_crossentropy', metrics = 'accuracy')
+history = model.fit(train_scaled, train_target, epochs = 5, verbose = 0)
+"""
+verbose : 훈련과정의 출력을 조절하는 매개변수로 default = 1, 1이면 epoch마다 진행 막대와 손실 등의 지표 출력 / 2이면 진행 막대를 뺴고 출력 / 0이면 훈련 과정 나타내지 않음
+"""
+print(history.history.keys()) # history 객체에는 history 딕셔너리가 들어있음 (key값으로 loss, accuracy를 가짐)
+
+import matplotlib.pyplot as plt
+plt.plot(history.history['loss'])
+plt.xlabel('epoch')
+plt.ylabel('loss')
+plt.show(block=True)
+
+plt.plot(history.history['accuracy'])
+plt.xlabel('epoch')
+plt.ylabel('loss')
+plt.show(block=True) # epoch가 커질수록 loss는 감소하고 accuracy는 증가하는 그래프
+
+# epoch = 20으로 증가
+model = model_fn()
+model.compile(loss = 'sparse_categorical_crossentropy', metrics = 'accuracy')
+history = model.fit(train_scaled, train_target, epochs = 20, verbose = 0)
+plt.plot(history.history['loss'])
+plt.xlabel('epoch')
+plt.ylabel('loss')
+plt.show(block=True)
+
+## 검증 손실
+"""
+stochastic gradient descent 를 사용했을 때 과대/과소적합과 epoch의 관계를 이전에 알아봤음 -> 인공신경망은 일종의 SGD를 사용하기에 동일한 개념이 적용됨
+epoch에 따른 과대/과소적합을 판단하려면 훈련셋뿐만 아니라 검증셋에 대한 결과도 있어야 함 / 이전에는 accuracy에 관해 설명했지만 여기서는 loss를 이용
+인공 신경망이 최적화하는 것은 loss, accuracy와 loss가 비례하는 경우도 있지만 아닌 경우도 있음, 때문에 모델이 잘 fitting되었는지 확인하는 데는 loss를 사용하는 것이 바람직
+"""
+model = model_fn()
+model.compile(loss = 'sparse_categorical_crossentropy', metrics = 'accuracy')
+history = model.fit(train_scaled, train_target, epochs = 20, verbose = 0, validation_data = (val_scaled, val_target)) # epoch마다의 검증 손실 계산을 위해 validation_data 매개변수에 (입력, 타깃) 튜플을 만들어 전달
+print(history.history.keys()) # dict_keys(['loss', 'accuracy', 'val_loss', 'val_accuracy'])
+
+# 그래프 그리기
+plt.plot(history.history['loss'])
+plt.plot(history.history['val_loss'])
+plt.xlabel('epoch')
+plt.ylabel('loss')
+plt.legend(['train','val'])
+plt.show(block = True) # 훈련 loss는 꾸준히 감소하고 검증 loss는 특정 지점까지는 감소하다 다시 증가하므로 과대적합 model / val_loss가 감소하는 시점을 가능한 한 뒤로 늦추면 검증 세트에 대한 소실이 줄어들고 정확도도 증가할 것
+
+# 과대적합 해결을 위한 Optimizer 설정 - Adam / 기본적으로는 RMSprop을 사용
+model = model_fn()
+model.compile(optimizer = 'adam', loss = 'sparse_categorical_crossentropy', metrics = 'accuracy')
+history = model.fit(train_scaled, train_target, epochs = 20, verbose = 0, validation_data = (val_scaled, val_target))
+plt.plot(history.history['loss'])
+plt.plot(history.history['val_loss'])
+plt.xlabel('epoch')
+plt.ylabel('loss')
+plt.legend(['train','val'])
+plt.show(block = True) # 과대적합이 확실히 감소 / val_loss가 감소하는 추세가 RMSprop을 사용할 때보다 확실하게 뒤로 밀렸음 --> 이 데이터셋에는 Adam Optimizer가 더 잘 어울림 / 학습률을 조정해 더 나은 손실 곡선을 얻을 수도 있음
+
+## 드롭아웃(Dropout)
+"""
+Dropout은 훈련 과정에서 층에 있는 일부 뉴런을 랜덤하게 꺼서(뉴런 출력을 0로) 과대적합을 막는다 / 얼마나 많은 뉴런을 드롭아웃할지 결정하는 것은 분석자의 선택
+- 일부 뉴런이 랜덤하게 꺼지면 특정 뉴런에 과도하게 의지하는 것을 줄일 수 있고, 일부 뉴런 출력이 없을 수 있다는 것을 감안하면 신경망은 더 안정적인 예측을 할 수 있을 것
+- 이는 2개의 신경망을 앙상블하는 것과 유사 (과대적합을 막을 수 있음)
+- keras.layers.Dropout으로 제공 / 층으로서 입력되긴 하지만 훈련되는 모델 parameter는 없음
+"""
+
+model = model_fn(keras.layers.Dropout(0.3))
+model.summary()
+"""
+Model: "sequential_4"
+_________________________________________________________________
+ Layer (type)                Output Shape              Param #   
+=================================================================
+ flatten_4 (Flatten)         (None, 784)               0         
+                                                                 
+ dense_8 (Dense)             (None, 100)               78500     
+                                                                 
+ dropout (Dropout)           (None, 100)               0         
+                                                                 
+ dense_9 (Dense)             (None, 10)                1010      
+                                                                 
+=================================================================
+Total params: 79,510
+Trainable params: 79,510
+Non-trainable params: 0
+_________________________________________________________________
+-  dropout 층에서는 훈련되는 모델 parameter 가 없음 / 일부 뉴런 출력을 0으로 하지만 전체 출력 배열의 크기를 바꾸지는 않음
+- 단, 훈련이 끝난 후 평가나 예측을 할 때에는 드롭아웃을 적용하면 안됨(훈련된 모든 뉴런을 사용해야 올바른 예측) / keras와 tensorflow에서는 모델이 평가와 예측에 사용될 때에는 자동으로 dropout을 적용하지 않음
+"""
+
+model.compile(optimizer = 'adam', loss = 'sparse_categorical_crossentropy', metrics = 'accuracy')
+history = model.fit(train_scaled, train_target, epochs = 20, verbose = 0, validation_data = (val_scaled, val_target))
+plt.plot(history.history['loss'])
+plt.plot(history.history['val_loss'])
+plt.xlabel('epoch')
+plt.ylabel('loss')
+plt.legend(['train','val'])
+plt.show(block = True) # 10번쨰 epoch에서 val_loss가 증가하지 않고 추세를 유지하지만 20번의 epoch를 수행했기에 다소 과대적합 되어있음 -> epochs = 10으로 변경
+
+## 모델 저장 & 복원
+model = model_fn(keras.layers.Dropout(0.3))
+model.compile(optimizer = 'adam', loss = 'sparse_categorical_crossentropy', metrics = 'accuracy')
+history = model.fit(train_scaled, train_target, epochs = 10, verbose = 0, validation_data = (val_scaled, val_target))
+
+model.save_weights('model-weights.h5') # 모델의 파라미터 저장 / 기본적으로 tensorflow의 체크포인트 format으로 저장하지만 확장자를 '.h5'로 지정하면 HDF5 format으로 저장
+model.save('model-whole.h5') # 모델 구조와 파라미터를 저장 / 기본적으로 SavedModel 포맷으로 저장되지만 확장자를 'h5'로 저장하면 HDF5 포맷으로 저장
+
+model = model_fn(keras.layers.Dropout(0.3))
+model.load_weights('model-weights.h5') # 새로운 모델을 생성하고 저장했던 모델 파라미터를 적재 / load_weights()를 사용하려면 save_weights()를 사용했던 모델과 정확히 같은 구조여야 함
+
+"""
+keras.predict() : 샘플마다 10개의 클래스에 대한 확률을 반환
+검증 set의 샘플 개수는 12,000개 이기에 predict()에서는 (12000,10) 배열을 반환 -> 10개 확률 중 가장 큰 것을 골라 target label과 비교해 정확도 계산
+"""
+import numpy as np
+val_labels = np.argmax(model.predict(val_scaled), axis = -1) # 가장 큰 값을 고르기 위해 argmax / argmax 의 axis = -1은 배열 마지막 차원을 따라 최댓값을 선택
+print(np.mean(val_labels == val_target)) # 0.8743333333333333
+
+model = keras.models.load_model('model-whole.h5')
+model.evaluate(val_scaled, val_target) # [0.3448579013347626, 0.8743333220481873]
+
+## CALLBACK : 훈련 과정 중간에 어떤 작업을 수행할 수 있게 하는 객체
+model = model_fn(keras.layers.Dropout(0.3))
+model.compile(optimizer = 'adam', loss = 'sparse_categorical_crossentropy', metrics = 'accuracy')
+checkpoint_cb = keras.callbacks.ModelCheckpoint('best-model.h5', save_best_only = True)
+model.fit(train_scaled, train_target, epochs = 20, verbose = 0, validation_data = (val_scaled, val_target), callbacks = [checkpoint_cb])
+
+model = keras.models.load_model('best-model.h5')
+model.evaluate(val_scaled, val_target) #  [0.3207039535045624, 0.8863333463668823]
+"""
+callbacks.ModelCheckpoint 클래스에 객체 checkpoint_cb를 만들어 이를 fit()의 callbacks 매개변수에 리스트로 감싸 전달
+ModelCheckpoint 콜백이 검증 점수가 가장 낮은 모델을 자동으로 저장 
+검증 점수가 상승하기 시작한다면 그 이상의 epoch부터는 과대적합이기에 훈련을 계속할 필요가 없음 -> 이렇게 과대적합 전에 훈련을 중지하는 것을 early stopping이라고 함
+early stopping은 훈련 epoch 횟수를 제한하는 역할이지만 과대적합을 막아주기에 규제 방법의 일종으로 생각 가능
+
+keras.callbacks.EarlyStopping(patience = , restore_best_weights = )
+- patience 매개변수 = 검증 점수가 향상되지 않더라도 참을 epoch횟수 / patience = 2라면 2번 연속 검증 점수가 향상되지 않으면 훈련 중지
+- restore_best_weights : True라면 가장 낮은 검증 손실을 낸 모델 파라미터로 되돌림
+EarlyStooping을 ModelCheckpoint랑 같이 사용하면 가장 낮은 검증 loss의 모델을 파일에 저장하고 검증 손실이 상승할 때 훈련 중지 가능, 훈련 중지 후 현제 모델 파라미터를 최상의 파라미터로 복구
+"""
+
+## Callback .ModelCheckpoint + callback.EarlyStopping 사용
+model = model_fn(keras.layers.Dropout(0.3))
+model.compile(optimizer = 'adam', loss = 'sparse_categorical_crossentropy', metrics = 'accuracy')
+checkpoint_cb = keras.callbacks.ModelCheckpoint('best-model.h5', save_best_only = True)
+early_stopping_cb = keras.callbacks.EarlyStopping(patience = 2, restore_best_weights = True)
+model.fit(train_scaled, train_target, epochs = 20, verbose = 0, validation_data = (val_scaled, val_target), callbacks = [checkpoint_cb,early_stopping_cb])
+
+print(early_stopping_cb.stopped_epoch) # stopped_epoch 속성에서 훈련이 중지된 epoch를 알 수 있음 / patience = 2였으므로 13-2 = 11번째 epoch가 최상의 모델
+
+plt.plot(history.history['loss'])
+plt.plot(history.history['val_loss'])
+plt.xlabel('epoch')
+plt.ylabel('loss')
+plt.legend(['train','val'])
+plt.show(block = True)
+
+model.evaluate(val_scaled, val_target) # [0.3209066092967987, 0.8818333148956299]
