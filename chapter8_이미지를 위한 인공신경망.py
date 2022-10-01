@@ -205,3 +205,89 @@ print(classes[np.argmax(preds)])
 
 test_scaled = test_input.reshape(-1,28,28,1) / 255.0
 model.evaluate(test_scaled, test_target) #  [0.2408510446548462, 0.91839998960495] -> 약 92%의 성능을 기대할 수 있음 / 검증세트보다는 좀 더 작게 나옴
+
+### 합성곱 신경망의 시각화 ###
+"""
+합성곱 신경망은 이미지에 있는 특징을 찾아 압축하는 데 뛰어난 성능 
+이번 챕터에서 합성곱 층이 이미지에서 어떤 것을 학습했는지 알아보기 위해 합성곱 층의 가중치 +  feature map 을 그림으로 시각화
+
+이전까지는 model 생성에 있어 keras.Sequential()을 사용했지만 좀 더 복잡한 모델을 만들 수 있는 함수형 API 또한 keras 에서 제공
+"""
+
+## 가중치 시각화
+"""
+합성곱 층은 여러 개 필터를 사용해 이미지에서 특징을 학습 -> 각 필터는 커널이라고 하는 가중치 + 절편을 가짐 / 절편은 시각적으로 의미가 있지는 앟고 가중치는 어떤 특징을 두드러지게 표현하는 역할
+"""
+
+ from tensorflow import keras
+ model = keras.models.load_model('best-cnn-model.h5')
+
+# model 의 layer를 알아보기
+model.layers # List의 형태로 출력
+"""
+[<keras.layers.convolutional.conv2d.Conv2D at 0x17de4751d30>, # 합성곱 
+ <keras.layers.pooling.max_pooling2d.MaxPooling2D at 0x17de4751d90>, # pooling
+ <keras.layers.convolutional.conv2d.Conv2D at 0x17de4785310>, # 합성곱2
+ <keras.layers.pooling.max_pooling2d.MaxPooling2D at 0x17de47853d0>, # pooling
+ <keras.layers.reshaping.flatten.Flatten at 0x17de47a0970>, # 밀집층에 넣기 위해 Flatten으로 1차원 배열화
+ <keras.layers.core.dense.Dense at 0x17de47a8c70>, # 밀집층
+ <keras.layers.regularization.dropout.Dropout at 0x17de47a8af0>, # dropout -> 과적합 감소
+ <keras.layers.core.dense.Dense at 0x17de47bca60>] # 출력층
+"""
+
+# 첫번째 합성곱 층의 weight (층의 가중치와 절편)
+conv = model.layers[0] # 첫번째 합성곱 층 선택
+print(conv.weights[0].shape, conv.weights[1].shape) # 선택한 합성곱 층의 weight 중 [0] = 가중치, [1] = 절편
+
+"""
+model 생성 시 첫번째 합성곱 층의 kernel size = (3.3) 이고 이 층에 전달되는 input의 depth가 1이므로 실제 커널 크기가 (3,3,1)이 됨 + filter 개수가 32개 --> (3,3,1,32)
+절편은 각 filter마다 하나씩 존재하므로 (32,)
+"""
+
+# 다루기 용이하도록 numpy 배열로 변환 -> weights 속성은 tensorflow의 Tensor 클래스 객체
+conv_weights = conv.weights[0].numpy()
+print(conv_weights.mean(), conv_weights.std()) # -0.022935035 0.26352292
+
+# 가중치들을 훈련하기 전의 가중치와 비교하기 위해 Histogram 작성
+import matplotlib.pyplot as plt
+plt.hist(conv_weights.reshape(-1,1)) # histogram을 그르기 위해서는 1차원 배열로 전달
+plt.xlabel('weight')
+plt.ylabel('count')
+plt.show(block=True)
+
+# 32개의 kernel을 16 * 2로 출력
+fig, axs = plt.subplots(2,16,figsize = (15,2))
+for i in range(2) :
+ for j in range(16) :
+  axs[i,j].imshow(conv_weights[:, :, 0, i*16+j], vmin=-0.5, vmax = 0.5) # imshow는 배열에 있는 최댓값과 최솟값을 활용해 픽셀 강도를 표현하기에 갑이 낮아도 해당 배열의 최댓값이면 밝은 색이 출력됨
+  # 이를 방지하기 위해서 vmin과 vmax로 범위 지정
+  axs[i, j].axis('off')
+plt.show(block=True)
+
+# 훈련하기 전의 빈 합성곱 신경망
+no_training_model = keras.Sequential()
+no_training_model.add(keras.layers.Conv2D(32, kernel_size = 3, activation = 'relu', padding = 'same', input_shape = (28,28,1)))
+no_training_conv = no_training_model.layers[0]
+print(no_training_conv.weights[0].shape) # (3, 3, 1, 32)
+
+no_training_weights = no_training_conv.weights[0].numpy()
+print(no_training_weights.mean(), no_training_weights.std()) # -0.004588199 0.084816985 / 평균은 훈련 모델과 유사하지만 표준편차가 매우 작아짐
+
+plt.hist(no_training_weights.reshape(-1,1)) # histogram을 그르기 위해서는 1차원 배열로 전달
+plt.xlabel('weight')
+plt.ylabel('count')
+plt.show(block=True) # 가중치가 대부분 -0.15 ~ 0.15 사이에 존재하고 고른 분포를 보임 -> tensorflow가 신경망 가중치 초기화 시 uniform 분포에서 랜덤하게 값을 선택하기 때문
+
+fig, axs = plt.subplots(2,16,figsize = (15,2))
+for i in range(2) :
+ for j in range(16) :
+  axs[i,j].imshow(no_training_weights[:, :, 0, i*16+j], vmin=-0.5, vmax = 0.5) # imshow는 배열에 있는 최댓값과 최솟값을 활용해 픽셀 강도를 표현하기에 갑이 낮아도 해당 배열의 최댓값이면 밝은 색이 출력됨
+  # 이를 방지하기 위해서 vmin과 vmax로 범위 지정
+  axs[i, j].axis('off')
+plt.show(block=True) # 가중치가 fitting model에 비해 밋밋하게 초기화됨 -> 합성곱 신경망이 fitting을 통해 data 분류 정확도를 높일 수 있는 유용한 패턴을 학습했다는 것을 알 수 있음
+
+## 함수형 API
+"""
+이전까지는 model 생성을 위해 keras.Sequential()을 사용헀지만 이 class는 layer를 차례대로 쌓은 모델을 만듦
+
+"""
