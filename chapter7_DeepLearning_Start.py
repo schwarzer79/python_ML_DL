@@ -2,6 +2,7 @@
 
 ## 패선 MNIST --> 딥러닝에서 자주 사용되는 데이터
 
+#pip install tensorflow
 from tensorflow import keras
 (train_input, train_target), (test_input, test_target) = keras.datasets.fashion_mnist.load_data()
 # load_data()를 이용하면 훈련 데이터와 테스트 데이터를 나누어서 반환해줌 / (입력, 타깃) 의 쌍으로 구성

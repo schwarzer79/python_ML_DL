@@ -110,6 +110,8 @@ keras.layers.Conv2D(10, kernel_size = (3,3), activation = 'relu') -> 왼쪽에�
 """
 
 # Data Import + preprocessing
+
+
 from tensorflow import keras
 from sklearn.model_selection import train_test_split
 (train_input, train_target), (test_input, test_target) = keras.datasets.fashion_mnist.load_data()
@@ -289,5 +291,23 @@ plt.show(block=True) # 가중치가 fitting model에 비해 밋밋하게 초기�
 ## 함수형 API
 """
 이전까지는 model 생성을 위해 keras.Sequential()을 사용헀지만 이 class는 layer를 차례대로 쌓은 모델을 만듦
+입력이 2개, 출력이 2개인 인공 신경망 모델은 keras.Sequential() class로는 만들기 어려움 --> 함수형 API를 이용해 제작
 
+함수형 API는 keras.model class를 이용해 만들어짐
+ dense1 = keras.layers.Dense(100, activation = 'sigmoid')
+ dense2 = keras.layers.Dense(10, activation = 'softmax')
+ 이 두 층을 Sequential의 add() 메소드를 사용해 전달할 수도 있지만  hidden = dense1(inputs) 를 통해 할수도 있음
+입력값인 inputs를 넣으면 출력값 hidden을 반환해주는 역할을 수행
+ outputs = dense2(hidden) 으로 dense1을 지나온 출력값을 다시 dense2에서 받아 outputs로 반환 
+ model = keras.Model(inputs,outputs) 로 keras.Model() 클래스에 연결
+여기서 inputs는 InputLayer 클래스에서 받는 값인 데, keras.Sequential()을 사용할 때는 자동으로 만들어주었지만 keras.Model()에서는 수동으로 만들어야함
+ --> inputs가 InputLayer의 출력값이 되어야함
+
+keras에서는 InputLayer 객체를 쉽게 다룰 수 있도록 Input() 함수를 제공 / shape 매개변수와 함께 사용해 입력 크기를 설정할 수 있음
+ inputs = keras.Input(shape = (784,))  
+ 
+기존 만들어진 model에서 Conv2D의 출력을 얻고 싶을 때, 출력을 model.layers[0].output 으로 얻을 수 있고
+입력은 model.input에서 얻을 수 있음
 """
+# Model의 input
+print(model.input)
