@@ -310,4 +310,42 @@ keras에서는 InputLayer 객체를 쉽게 다룰 수 있도록 Input() 함수�
 입력은 model.input에서 얻을 수 있음
 """
 # Model의 input
-print(model.input)
+print(model.input) # KerasTensor(type_spec=TensorSpec(shape=(None, 28, 28, 1), dtype=tf.float32, name='conv2d_input'), name='conv2d_input', description="created by layer 'conv2d_input'")
+
+conv_acti = keras.Model(model.input, model.layers[0].output) # 새로운 conv_acti 모델 생성 / 기존 model에서 predict()를 하면 출력층의 최종 결과를 반환하지만 conv_acti 에서는 Conv2D의 결과를 출력
+
+## Feature map 시각화
+(train_input, train_target), (test_input, test_target) = keras.datasets.fashion_mnist.load_data()
+plt.imshow(train_input[0], cmap = 'gray_r')
+plt.show(block=True)
+
+# sample을 conv_acti 모델에 넣어 Conv2D 층이 만드는 feature map을 출력 / predict()는 항상 입력의 첫번째 차원이 배치 차원일 것으로 기대
+inputs = train_input[0:1].reshape(-1, 28, 28, 1) / 255.0
+feature_maps = conv_acti.predict(inputs)
+print(feature_maps.shape) # (1, 28, 28, 32) / 첫번째 차원은 배치차원, 샘플을 하나만 입력했기에 1
+
+fig, axs = plt.subplots(4, 8, figsize = (15,8))
+for i in range(4) :
+ for j in range(8) :
+  axs[i, j].imshow(feature_maps[0, :, :, i*8 + j])
+  axs[i, j].axis('off')
+plt.show(block = True) # 32개 필터를 이용했을 때 입력 이미지에서 강하게 활성화된 부분을 보여줌
+
+# 두번쨰 합성곱 층의 feature map
+conv2_acti = keras.Model(model.input, model.layers[2].output)
+inputs  = train_input[0:1].reshape(-1, 28, 28, 1) / 255.0
+feature_maps = conv2_acti.predict(inputs)
+print(feature_maps.shape) # (1, 14, 14, 64) / 첫번쨰 pooling으로 가로세로가 반으로 접히고, 두번째 합성곱 층의 filter개수가 64개
+
+fig, axs = plt.subplots(8, 8, figsize = (12,12))
+for i in range(8) :
+ for j in range(8) :
+  axs[i, j].imshow(feature_maps[0, :, :, i*8 + j])
+  axs[i, j].axis('off')
+plt.show(block = True) # 두번째 합성곱은 첫번째 합성곱의 feature map에 비해 이해하기 어려움
+
+"""" # 두번째 합성곱은 첫번째 합성곱의 feature map에 비해 이해하기 어려움
+why?
+- 두번째 합성곱의 filter 크기는 (3, 3, 32), 두번째 합성곱 층의 첫번째 feature map은 첫번째 합성곱에서 출력한 32개의 feature map과 곱해진 것 = 직관적으로 이해하기 어려움
+- 이러한 현상은 합성곱 layer를 쌓을수록 심해짐 -> 합성곱 신경망의 앞부분의 합성곱 layer는 시각적 정보를 탐지하고, 후반부의 합성곱 layer는 추상적인 정보를 학습
+"""
